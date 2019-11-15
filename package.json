@@ -1,0 +1,29 @@
+{
+  "name": "chat",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "async": "^3.1.0",
+    "body-parser": "^1.19.0",
+    "cookie-parser": "^1.4.4",
+    "debug": "~2.6.9",
+    "ejs": "~2.6.1",
+    "ejs-locals": "^1.0.2",
+    "ejs-mate": "^3.0.0",
+    "express": "~4.16.1",
+    "express-ejs-layouts": "^2.5.0",
+    "express-session": "^1.17.0",
+    "http-errors": "~1.6.3",
+    "livereload": "^0.8.2",
+    "mongodb": "^3.3.3",
+    "mongoose": "^5.7.5",
+    "morgan": "~1.9.1",
+    "nconf": "^0.10.0",
+    "path": "^0.12.7",
+    "serve-favicon": "^2.5.0",
+    "winston": "^3.2.1"
+  }
+}

@@ -10,6 +10,11 @@ var cookieParser = require('cookie-parser');
 const env = 'development';
 var livereload = require('livereload');
 var server = livereload.createServer();
+var mongoose = require('./lib/mongoose');
+var session = require('express-session');
+var connectMongo = require ('connect-mongo');
+
+
 
 
 var HttpError = require('./error').HttpError;
@@ -41,6 +46,24 @@ app.set('views', path.join(__dirname, '/template'));
 app.use(favicon(path.join(__dirname, '/public/images/favicon.ico')));
 app.use(morgan('dev'));
 app.use(cookieParser());
+
+var MongoStore = connectMongo(session);
+
+app.use(session({
+    secret: config.get('session:secret'),
+    key: config.get('session:key'),
+    cookie: config.get('session:cookie'),
+    store: new MongoStore({ mongooseConnection: mongoose.connection })
+    
+}));
+
+app.use(function(req, res, next) {
+    req.session.numberOfVisits = req.session.numberOfVisits + 1 || 1;
+    res.send("Visits:" + req.session.numberOfVisits);
+    
+});
+
+
 app.use(express.static(path.join(__dirname, '/public')));
 app.use(require('./middleware/sendHttpError'));
 app.use("/users", userRouter);
@@ -56,22 +79,6 @@ app.get('/test', function(req, res, next) {
     log.debug("прошел ли метод рендера?"); 
 });
 
-
-///////////////////
-
-
-//app.use(function(err, req, res, next) {
-//    log.error(err.stack);
-//    res.status(500).send('Something broke!');
-//});
-//
-//
-//app.use(function(req, res) {
-//    res.status(404).render('404');
-//});
-
-
-///////////////////////
 
 app.use(function(err, req, res, next) {
     log.debug("получено управление next");

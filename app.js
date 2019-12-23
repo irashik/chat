@@ -1,89 +1,183 @@
-var express = require('express');
-var engine = require('ejs-mate');
-var path = require('path');
-var log = require('./lib/log')(module);
-var config = require('./config');
-var bodyParser = require('body-parser');
-var favicon = require('serve-favicon');
-var morgan = require('morgan');
-var cookieParser = require('cookie-parser');
-const env = 'development';
-var livereload = require('livereload');
-var server = livereload.createServer();
-var mongoose = require('./lib/mongoose');
-var session = require('express-session');
-var connectMongo = require ('connect-mongo');
+'use strict';
+
+const express                       = require('express');
+const engine                        = require('ejs-mate');
+const path                          = require('path');
+const log                           = require('./lib/log')(module);
+const config                        = require('./config');
+const bodyParser                    = require('body-parser');
+const favicon                       = require('serve-favicon');
+const logger                        = require('morgan');
+const cookieParser                  = require('cookie-parser');
+const routes                        = require('./routes/index');
+const livereload                    = require('livereload');
+const server                        = livereload.createServer();
+const mongoose                      = require('./lib/mongoose');
+const session                       = require('express-session');
+const connectMongo                  = require ('connect-mongo');
+const HttpError                     = require('./error').HttpError;
+const passport                      = require('passport');
+const LocalStrategy                 = require('passport-local').Strategy;
+const flash                         = require('connect-flash');
+const cors                          = require('cors');
+const Account                       = require('./models/user');
+const createError                   = require('http-errors');
+
+let io = null;
 
 
 
 
-var HttpError = require('./error').HttpError;
+const app = express();
+
+const NODE_ENV = 'development';
+const isProduction = process.env.NODE_ENV === 'production';
+
+app.use(cors());
+app.use(logger('combined'));
+
 
 server.watch(__dirname + "/public");
 
-
-
-const userRouter = require("./routes/userRouter");
-const homeRouter = require("./routes/homeRouter");
-
-var app = express();
-//app.disable('view cache');
-
-
-app.use(bodyParser.urlencoded({ extended: false }));
+app.use(bodyParser.urlencoded({ 
+    extended: false
+}));
 
 app.use(bodyParser.json());
-//app.use(expressLayouts); // конфликтует с ejs-mate
-
 
 // view engine setup
 app.engine('ejs', engine);   // ejs-mate 
 app.set('view engine', 'ejs');
+
 app.set('views', path.join(__dirname, '/template'));
-
-
-
 app.use(favicon(path.join(__dirname, '/public/images/favicon.ico')));
-app.use(morgan('dev'));
 app.use(cookieParser());
 
-var MongoStore = connectMongo(session);
+const sessionStore = require('./lib/sessionStore');
+
+
 
 app.use(session({
+    name: config.get('session:name'),
     secret: config.get('session:secret'),
-    key: config.get('session:key'),
+    resave: config.get('session:resave'),
+    saveUninitialized: config.get('session:saveUninitialized'),
     cookie: config.get('session:cookie'),
-    store: new MongoStore({ mongooseConnection: mongoose.connection })
+    store: sessionStore
     
 }));
 
-app.use(function(req, res, next) {
-    req.session.numberOfVisits = req.session.numberOfVisits + 1 || 1;
-    res.send("Visits:" + req.session.numberOfVisits);
-    
-});
 
+
+
+app.use(require('./middleware/sendHttpError'));
+app.use(require('./middleware/loadUser'));
+
+app.use(flash());
 
 app.use(express.static(path.join(__dirname, '/public')));
-app.use(require('./middleware/sendHttpError'));
-app.use("/users", userRouter);
-app.use('/', homeRouter);
 
 
 
-// тестовая страница для шаблонизатора
-app.get('/test', function(req, res, next) {
-   
-    log.debug("должна загрузиться страница ejs");
-    res.render("testPage", { message: "Hello Dima" });
-    log.debug("прошел ли метод рендера?"); 
+// passport autorized
+app.use(passport.initialize());
+app.use(passport.session());
+
+passport.use('local', new LocalStrategy(function(username, password, done) {
+    
+    Account.findOne({ username: username }, function (err, account) {
+                if (err) { 
+                    log.debug('error' + err);
+                    return done(err); 
+                }
+                if (!account) { 
+                    log.debug('не сущ. такой аккаунт');
+                    return done(null, false, { message: "User not found"});
+                        
+                } else {
+                        
+                        Account.verifyPassword(password, account.password, function(res) {
+                            
+                            if (res) {
+                               return done(null, account, { message: "Hello " + account.username});
+                             } else {
+                                log.debug('Incorrect user || password');
+                                return done(null, false, { message: "Incorrect user || password" }); 
+                             }
+                            
+                        });
+                                 
+                }
+                             
+    });
+
+}));
+
+
+
+passport.serializeUser(Account.serializeUser());
+passport.deserializeUser(Account.deserializeUser());
+
+app.use('/', routes);
+
+
+
+
+
+
+// MY ERROR HANDLER
+
+if(!isProduction) {
+
+     
+// обработка ошибок 404 - которые прошли через все обработчики.
+app.use((req, res, next) => {
+    return next(createError(404, "Ошибка 404"));
+    
+    res.json({
+        message: req.message,
+        message2: res.message
+        
+        
+    });
+    next();
+    
 });
 
 
+
+// обработчики ошибок.2
+app.use(function (err, req, res, next) {        // одного наверное достаточно.
+      
+        console.error(err.stack);
+        res.status(err.status || 500);
+        res.json({
+            errors: {
+                message: err.message,
+                error: err,
+                error_status: err.status,
+                stack: err.stack
+                
+            }
+        });
+    });
+
+
+}
+
+
+
+
+
+
+
+
+// ОБРАБОТЧИКИ ОШИБОК.
+
 app.use(function(err, req, res, next) {
-    log.debug("получено управление next");
+    log.debug("получено управление ОБРАБОТЧИК ОШИБОК");
     
-    if (typeof err == 'number') {
+    if (typeof err === 'number') {
         err = new HttpError(err);
         log.debug("запущен httpError");
         
@@ -95,8 +189,8 @@ app.use(function(err, req, res, next) {
        
     } else {
         
-           if (app.get('env') == 'development') {
-               
+           if (app.get(NODE_ENV) === 'development') {
+               log.debug("started errorHandler");
                express.errorHandler()(err, req, res, next);
                
                } else {
@@ -116,13 +210,13 @@ app.use(function(err, req, res, next) {
 
 
 
-if (app.get('env') == 'development') {
+if (app.get(NODE_ENV) === 'development') {
     
-    app.use(morgan('dev'));
+    app.use(logger('dev'));
     
 } else {
     
-    app.use(morgan('default'));
+    app.use(logger('default'));
     
 };
 
@@ -131,9 +225,11 @@ if (app.get('env') == 'development') {
 
 
 //////////////////////
-app.listen(config.get('port'));
-log.info('Express server started on port ' + config.get('port'));
+let serverSock = app.listen(config.get('port'), () => {
+              log.info('Server running on http://localhost on port ' + config.get('port'))
+});
 
 
+io = require('./socket')(serverSock);
 
-
+app.set('io', io);

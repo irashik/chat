@@ -1,0 +1,19 @@
+<% layout('layout/page') -%>
+<% block('title', 'Привет :-0'); -%>
+
+<p class="lead"> Всем привет!</p>
+
+
+<% let error; if (message.length > 0) { %>
+<div class="alert alert-danger">
+  <p>my flash message: <%= message %></p>
+</div>
+<% } %>
+
+
+
+
+
+ <% if (user) { %>
+<p> Добро пожаловать, <%= user.username %></p>
+<% } %>

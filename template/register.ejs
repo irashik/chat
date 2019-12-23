@@ -1,0 +1,46 @@
+<% layout('/layout/page') -%>
+<% block('title', "Регистрация") -%>
+
+<p>Регистрация нового пользователя</p>
+<p>Введите имя пользователя и пароль.</p>
+
+<!-- скрипт отвечающий за нажатие кнопки submit содержащий функцию validate() 
+<script src="./js/auth.js"></script> -->
+
+<h1>страничка register</h1>
+
+
+
+<form class="form-horizontal login-form" name="register-form" method="POST" action='/register' >
+  <div class="form-group">
+    <label for="input-username" class="col-lg-2 control-label">Имя</label>
+
+    <div class="col-lg-10">
+      <input name="username" type="text" class="form-control" id="input-username" placeholder="Имя">
+    </div>
+  </div>
+  <div class="form-group">
+    <label for="input-password" class="col-lg-2 control-label">Пароль</label>
+
+    <div class="col-lg-10">
+      <input name="password" type="password" class="form-control" id="input-password" placeholder="Пароль">
+    </div>
+  </div>
+  <div class="form-group">
+    <div class="col-lg-offset-2 col-lg-10">
+      <button type="submit" class="btn btn-primary" id="submit_btn_reg" data-loading-text="Отправляю...">Войти</button>
+      <span class="help-block error"></span>
+    </div>
+  </div>
+</form>
+<p id="param"></p>
+
+
+
+
+<% let message; if (message) { %>
+<div class='alert alert-danger'>
+    <p>my flash message: <%= message %> </p>
+</div>
+<% } %>
+
